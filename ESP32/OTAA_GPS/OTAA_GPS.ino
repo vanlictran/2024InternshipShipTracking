@@ -147,7 +147,7 @@ void loop()
 
   int i = 0;
   unsigned char mydata[64];
-  /*
+  
   //lattitude
   mydata[i++] = ( LatitudeBinary >> 16 ) & 0xFF;
   mydata[i++] = ( LatitudeBinary >> 8 ) & 0xFF;
@@ -171,7 +171,7 @@ void loop()
   //temperature
   mydata[i++] = t >> 8;
   mydata[i++] = t & 0xFF;
-  */
+  
   //battery
   mydata[i++] = b >> 8;
   mydata[i++] = b & 0xFF;
@@ -179,9 +179,12 @@ void loop()
 
   char str[i] = "";
   array_to_string(mydata, i, str);
+    Serial.println("string value : ");
+    Serial.println(str);
 
   //if(s > 0 && LatitudeBinary > 0 && LongitudeBinary > 0) {
-    mySerial1.printf("AT+SEND=3:");
+    //mySerial1.println("AT+SEND=3:68656c6c6f");
+    mySerial1.print("AT+SEND=3:");
     mySerial1.println(str);
     
     mySerial1.readStringUntil('\n');
@@ -252,6 +255,7 @@ float measure_acc(int axis) {
     //Serial.print("Acc:");
     Serial.println(a);
   }
+  //a = "30.5";
   return a.toFloat();
 }
 
@@ -274,7 +278,7 @@ float measure_bat() {
     Serial.print("Bat:");
     Serial.println(bat);
   }
-
+  //bat = "230"; 
   return bat.toFloat();
 }
 
@@ -298,7 +302,7 @@ float measure_temp() {
     Serial.print("Temperature:");
     Serial.println(temperature);
   }
-
+  //temperature = "37.5";
   return temperature.toFloat();
 }
 
@@ -358,7 +362,7 @@ float measure_gnss(int axis) {
     DC = 0;
   }
 
-
+  //a = "100.5";
   return a.toFloat();
 }
 

@@ -53,8 +53,8 @@ void setup()
   delay(1000);
   mySerial1.begin(115200, SERIAL_8N1, rxPin, txPin);
   delay(1000);  
-  mySerial1.println("ATE");
-  delay(20);
+  mySerial1.println("ATE=0");
+  delay(1000);
   Serial.println("-------------------");
   Serial.println("SETUP - AT COMMANDS");
   Serial.println("-------------------");
@@ -133,18 +133,30 @@ void setup()
 
 void loop()
 {
+  flush_serial_AT();
+  delay(300);
   int16_t x = 1000 * measure_acc(1);
+  flush_serial_AT();
   int16_t y = 1000 * measure_acc(2);
+  flush_serial_AT();
   int16_t z = 1000 * measure_acc(3);
+
+  delay(1000);
+  flush_serial_AT();
   
   int16_t t = (int16_t) 10 * measure_temp(); // return temperature in tens of degree
+  delay(500);
 
   int16_t b = measure_bat() / 10;
+  delay(500);
 
   int32_t LatitudeBinary = 10000 * measure_gnss(1); //Latitude : 0.0001 ° Signed MSB
+  delay(500);
   int32_t LongitudeBinary = 10000 * measure_gnss(2); //Longitude : 0.0001 ° Signed MSB
+  delay(500);
   uint16_t s = 100 * measure_gnss(4); // nb of satellite in view with GNSS
 
+  delay(1000);
   int i = 0;
   unsigned char mydata[64];
   
@@ -204,7 +216,7 @@ void loop()
     Serial.println(str);
 
     delay(10000);
-    return;
+    flush_serial_AT();
   /*}
   else {
     Serial.println("No GPS DATA FOUND");
@@ -241,20 +253,23 @@ float measure_acc(int axis) {
   flush_serial_AT();
   if (axis == 1) {
     mySerial1.println("ATC+AX=?");
+    Serial.print("x : ");
   }
   else if (axis == 2) {
     mySerial1.println("ATC+AY=?");
+    Serial.print("y : ");
   }
   else if (axis == 3) {
     mySerial1.println("ATC+AZ=?");
+    Serial.print("z : ");
   }
   String a;
-  delay(100);
+  delay(500);
   if (mySerial1.available()) {
     a = mySerial1.readStringUntil('\n');
-    //Serial.print("Acc:");
     Serial.println(a);
   }
+  delay(200);
   //a = "30.5";
   return a.toFloat();
 }

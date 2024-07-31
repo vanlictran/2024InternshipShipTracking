@@ -1,0 +1,25 @@
+services:
+  grafana:
+    user: root
+    container_name: 'dniit-shiptrackplugin-panel'
+
+    platform: 'linux/amd64'
+    build:
+      context: ./.config
+      args:
+        grafana_image: ${GRAFANA_IMAGE:-grafana-enterprise}
+        grafana_version: ${GRAFANA_VERSION:-10.3.3}
+        development: ${DEVELOPMENT:-false}
+    ports:
+      - 3000:3000/tcp
+    volumes:
+      - ./dist:/var/lib/grafana/plugins/dniit-shiptrackplugin-panel
+      - ./provisioning:/etc/grafana/provisioning
+      - .:/root/dniit-shiptrackplugin-panel
+
+    environment:
+      NODE_ENV: development
+      GF_LOG_FILTERS: plugin.dniit-shiptrackplugin-panel:debug
+      GF_LOG_LEVEL: debug
+      GF_DATAPROXY_LOGGING: 1
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: dniit-shiptrackplugin-panel

@@ -1,0 +1,9 @@
+{
+  "name":"zone-close-ship",
+  "level_alert": 3,
+  "pos": {
+    "long":0.0010515356361,
+    "larg":0.000306691722578
+  },
+  "dist":0.00005
+}

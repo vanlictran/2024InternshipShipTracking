@@ -19,9 +19,7 @@ scrape_configs:
   static_configs:
   - targets:
     - localhost:9090
-- job_name: 'node-red'
+- job_name: 'pushgateway'
+  honor_labels: true
   static_configs:
-    - targets: ['mynodered:1880']
-- job_name: 'node-exporter'
-  static_configs:
-    - targets: ['node-exporter:9100']
+    - targets: ['pushgateway-ship-track:9091']

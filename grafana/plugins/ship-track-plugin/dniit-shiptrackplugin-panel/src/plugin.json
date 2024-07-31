@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "panel",
+  "name": "Ship-Track-Plugin",
+  "id": "dniit-shiptrackplugin-panel",
+  "info": {
+    "keywords": ["panel"],
+    "description": "Plugin for ship tracking monitoring",
+    "author": {
+      "name": "Dniit"
+    },
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.3.3",
+    "plugins": []
+  }
+}

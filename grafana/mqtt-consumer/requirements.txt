@@ -1,0 +1,6 @@
+paho-mqtt
+prometheus-client
+scipy
+shapely
+numpy
+matplotlib

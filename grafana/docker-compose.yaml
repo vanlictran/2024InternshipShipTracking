@@ -5,7 +5,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     ports:
-      - 9090:9090
+      - 4444:9090
     restart: unless-stopped
     volumes:
       - ./prometheus:/etc/prometheus
@@ -16,7 +16,7 @@ services:
     image: prom/pushgateway
     container_name: pushgateway-ship-track
     ports:
-      - 9091:9091
+      - 4447:9091
     restart: unless-stopped
     networks:
       - ship-track-net
@@ -25,7 +25,7 @@ services:
     image: benneuville/grafana-track-ship
     container_name: grafana-ship-track
     ports:
-      - 3000:3000
+      - 4445:3000
     restart: unless-stopped
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
@@ -53,10 +53,23 @@ services:
       - ./datas:/usr/share/nginx/html/datas
     networks:
       - ship-track-net
-
+  consumer:
+    build: ./mqtt-consumer
+    container_name: consumer-ship-track
+    volumes:
+      - ./mqtt-consumer:/app
+    command: python consumer.py
+    networks:
+      - ship-track-net
+    depends_on:
+      - pushgateway
+      - prometheus
+      - grafana
+      - nginx
 
 volumes:
   prom_data_ship_track:
 
 networks:
   ship-track-net:
+    driver: bridge

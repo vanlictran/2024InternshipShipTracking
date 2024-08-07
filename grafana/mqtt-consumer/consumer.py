@@ -3,7 +3,7 @@ from prometheus_client import Gauge, Enum, CollectorRegistry, push_to_gateway
 from scipy.interpolate import CubicSpline
 from shapely.geometry import Point, Polygon
 import json
-import urllib.request
+import urllib.request as requests
 import urllib.parse
 import time
 import threading
@@ -11,7 +11,16 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-DEBUG = False
+DEBUG = True
+
+
+PUSHGATEWAY = 'http://pushgateway:9091'
+PROMETHEUS = 'http://prometheus:9090'
+NGINX = 'http://nginx:3030'
+if DEBUG:
+    PUSHGATEWAY = 'http://localhost:4447'
+    PROMETHEUS = 'http://localhost:4444'
+    NGINX = 'http://localhost:3030'
 
 # table of state usable in thread function
 STATE_LIST = ['DOWN', 'MOVING', 'STAND BY', 'OUT OF RANGE']
@@ -38,10 +47,15 @@ COLLISON_DETECTION_METRIC = Gauge('collison_detection', 'Collison detection from
 def round_coordinates(coordinates, precision=7):
     return [[round(coord[0], precision), round(coord[1], precision)] for coord in coordinates]
 
+
+#############################################################################################
+#                                    STATE CALCULATION                                      #
+#############################################################################################
+
 # Function to check if a GPS point is in a zone area
 def check_position_area(lat, lon):
     # Get geojson file from 127.0.0.1:3030/data/zone-han-river.geojson
-    with urllib.request.urlopen('http://127.0.0.1:3030/data/zone-han-river.geojson') as url:
+    with urllib.request.urlopen(NGINX + '/data/zone-han-river.geojson') as url:
         data = json.loads(url.read().decode())
 
     # Extract the coordinates of the polygon and round them
@@ -54,15 +68,35 @@ def check_position_area(lat, lon):
 
     return 1 if (polygon.contains(point) or polygon.within(point)) else 3
 
-def check_state(lat, lon):
-    return check_position_area(lat, lon)
+def check_state(current_device_data, data):
+    print(current_device_data)
+    return 2 if not(is_moving_noise_reduction(current_device_data, data)) else check_position_area(current_device_data['latitude'], current_device_data['longitude'])
 
-def calculate_direction(lat1, lon1, lat2, lon2):
-    delta_lat = lat2 - lat1
-    delta_lon = lon2 - lon1
-    magnitude = math.sqrt(delta_lat**2. + delta_lon**2.)
-    direction = {'x': delta_lat / magnitude,'y': delta_lon / magnitude} if magnitude != .0 else {'x':.0,'y': .0}
-    return direction
+def is_moving_noise_reduction(current, data, threshold_avg = 15, threshold_far=35, num_points=5):
+    data = list(data.values())
+    if len(data) == 0:
+        return False
+
+    lon_current = current["longitude"]
+    lat_current = current["latitude"]
+
+    total_distance = 0
+    farest_point = 0
+    for i in range(1, num_points + 1):
+        lon_prev = data[i]["longitude"]
+        lat_prev = data[i]["latitude"]
+        distance = haversine_distance_in_meters(lon_current, lat_current, lon_prev, lat_prev)
+        print(distance)
+        if distance > farest_point:
+            farest_point = distance
+        total_distance += distance
+    print('############################################################\n', farest_point, total_distance,'\n############################################################')
+    average_distance = total_distance / num_points
+    return True if farest_point > threshold_far else False if average_distance < threshold_avg else True
+
+#############################################################################################
+#                                      FETCHING DATA                                        #
+#############################################################################################
 
 def fetch_geojson_from_url(url):
     try:
@@ -75,8 +109,8 @@ def fetch_geojson_from_url(url):
 
 def fetch_prometheus_data(query):
     try:
-        encoded_query = urllib.parse.quote(query)
-        url = f'http://localhost:9090/api/v1/query?query={encoded_query}'
+        encoded_query = urllib.parse.quote(query + "")
+        url = PROMETHEUS + '/api/v1/query?query='+ encoded_query
         response = urllib.request.urlopen(url).read().decode()
         return json.loads(response)['data']['result']
     except Exception as e:
@@ -101,14 +135,14 @@ def organize_data(data, metric_name, devices_data):
             devices_data[device_id][timestamp][metric_name] = float(val)
     return devices_data
 
-def data_merge_collision(last_data_device):
-    PERIOD_TIME = 2
-    device = last_data_device["device_id"]
+def data_merging(last_data_device):
+    DATA_QUERY = '{job="data-ship"}[2m]'
+    device = last_data_device['device_id']
     try:
-        date_query = f'date[{PERIOD_TIME}m]'
-        latitude_query = f'latitude[{PERIOD_TIME}m]'
-        longitude_query = f'longitude[{PERIOD_TIME}m]'
-        speed_query = f'speed[{PERIOD_TIME}m]'
+        date_query = 'date'+DATA_QUERY
+        latitude_query = 'latitude'+DATA_QUERY
+        longitude_query = 'longitude'+DATA_QUERY
+        speed_query = 'speed'+DATA_QUERY
 
         date_data = fetch_prometheus_data(date_query)
         latitude_data = fetch_prometheus_data(latitude_query)
@@ -116,18 +150,19 @@ def data_merge_collision(last_data_device):
         speed_data = fetch_prometheus_data(speed_query)
 
         devices_data = {}
-
         devices_data = organize_data(date_data, 'date', devices_data)
         devices_data = organize_data(latitude_data, 'latitude', devices_data)
         devices_data = organize_data(longitude_data, 'longitude', devices_data)
         devices_data = organize_data(speed_data, 'speed', devices_data)
 
         for device_id, data in devices_data.items():
-            sorted_timestamps = sorted(data.keys(), reverse=True)#[:3]
+            sorted_timestamps = sorted(data.keys(), reverse=True)
             devices_data[device_id] = {ts: data[ts] for ts in sorted_timestamps}
 
         if(device not in devices_data):
             Exception(f"Device {device} not found in devices data")
+
+        print(devices_data)
 
         current_device_data = devices_data[device]
         current_device_timestamps = sorted(current_device_data.keys(), reverse=True)
@@ -144,6 +179,13 @@ def data_merge_collision(last_data_device):
     except Exception as e:
         print(f"Failed to merge collision data: {e}")
         return {}
+
+#############################################################################################
+#                                   PREDICTION MOVEMENT                                     #
+#############################################################################################
+
+def haversine_distance_in_meters(lat1, lon1, lat2, lon2):
+    return haversine_distance(lat1, lon1, lat2, lon2) * 1000
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     R = 6371.0  # Rayon de la Terre en km
@@ -221,9 +263,6 @@ def predict_next_points(gps_data, num_predictions=3, time_step=20, base_error_st
             # Estimate the date for the next point
             next_date = current_time
             
-            # Calculate the direction for the perpendicular points
-            direction = calculate_direction(prev_lat, prev_long, next_lat, next_lon)
-            
             # Calculate error margin distance (inverse of speed)
             current_speed = speeds[-1] if i == 1 else speeds[-1]  # Use the last known speed (or can use average speed)
             # error_margin = base_error_step
@@ -246,7 +285,6 @@ def predict_next_points(gps_data, num_predictions=3, time_step=20, base_error_st
     except Exception as e:
         print(f"Failed to predict next points: {e}")
         return {}
-
 
 def create_error_zone_recurence(polygon, predicted_points):
     if predicted_points == {}:
@@ -271,10 +309,8 @@ def create_error_zone_polygon(gps_data, predicted_points):
     
     return Polygon(points)
 
-def check_collision(object_data):
-    devices_data = data_merge_collision(object_data).items()
-
-    current_device_id = object_data["device_id"]
+def check_collision(current_device_id, devices_data):
+    devices_data = devices_data
     current_zone = {}
     zones = []
 
@@ -291,10 +327,15 @@ def check_collision(object_data):
 
     for zone in zones:
         if zone.intersects(current_zone):
+            # DEBUG
             # plot_trajectories(current_zone, zones)
             return 1
 
     return 0
+
+#############################################################################################
+#                                           DEBUG                                           #
+#############################################################################################
 
 # function to vizualize the trajectory and the error zones on a map (in a thread, to avoid blocking the main thread, and killed when new information is available)
 def plot_trajectories(current_zone, zones):
@@ -319,7 +360,6 @@ def plot_trajectories(current_zone, zones):
     plt.grid(True)
     plt.axis('equal')
     plt.show()
-
 
 def debug_send_data():
     STATE_LIST = ['DOWN', 'MOVING', 'STAND BY', 'OUT OF RANGE']
@@ -374,7 +414,7 @@ def debug_send_data():
             for device_id in devices:
                 current_time = time.time()
                 # Get data from Prometheus limited to 1 and to the device ID
-                previous_data = json.loads(urllib.request.urlopen('http://localhost:9090/api/v1/query?query={device_id="' + device_id + '"}').read().decode())
+                previous_data = json.loads(urllib.request.urlopen(PROMETHEUS + '/api/v1/query?query={device_id="' + device_id + '"}').read().decode())
 
                 previous_data = previous_data['data']['result']
 
@@ -388,21 +428,24 @@ def debug_send_data():
                     'acceleration_z': 0.0,
                     'battery': 100.0,
                     'temperature': 25.0,
-                    'latitude': points[step][1] if device_id == 'debug_device' else points[step][1], 
-                    'longitude': points[step][0] if device_id == 'debug_device' else points[step][0],
+                    'latitude': points[step][1] if device_id == 'debug_device' else 16.051108320558086, 
+                    'longitude': points[step][0] if device_id == 'debug_device' else 108.22507352428653,
                     'speed': 0.0,
                     'distance': 0.0,
                     'date': current_time,
                 }
 
                 distance, speed = calculate_distance_speed(object_data, prev_values, current_time)
-                state = check_state(object_data['latitude'], object_data['longitude'])
 
                 object_data['device_id'] = device_id
                 object_data['speed'] = speed
                 object_data['distance'] = distance
 
-                #object_data['collision_detection']= check_collision(object_data)
+                datas = data_merging(object_data)
+
+                object_data['collision_detection']= check_collision(device_id, datas.items())
+                all_datas = datas[device_id] if device_id in datas else {}
+                state = check_state(object_data, all_datas)
 
                 # Update Prometheus metrics
                 ACCELERATION_X_METRIC.labels(device_id=device_id).set(object_data['acceleration_x'])
@@ -421,16 +464,16 @@ def debug_send_data():
                 DISTANCE_METRIC.labels(device_id=device_id).set(object_data['distance'])
 
                 DATE_METRIC.labels(device_id=device_id).set(object_data['date'])
-                #COLLISON_DETECTION_METRIC.labels(device_id=device_id).set(object_data['collision_detection'])
+                COLLISON_DETECTION_METRIC.labels(device_id=device_id).set(object_data['collision_detection'])
 
                 print(f"Debug data sent: {object_data}")
 
                 
                 # Push metrics to Prometheus Pushgateway with the job name 'mqtt_listener'
                 
-                push_to_gateway('localhost:9091', job='data-ship', registry=registry)
+                push_to_gateway(PUSHGATEWAY, job='data-ship', registry=registry)
 
-                time.sleep(15)
+                time.sleep(2)
 
                 # Wait for 15 seconds before sending the next debug data
             step = (step + 1) % len(points)
@@ -438,6 +481,10 @@ def debug_send_data():
         # except Exception as e:
         #     print(f"Failed to send debug data: {e}")
 
+
+#############################################################################################
+#                               CLIENT FUNCTION DEFINITION                                  #
+#############################################################################################
 
 def on_message(mosq, obj, msg):
     try:
@@ -453,7 +500,7 @@ def on_message(mosq, obj, msg):
 
         # Get data from Prometheus limited to 1 and to the device ID
         
-        previous_data = json.loads(urllib.request.urlopen('http://localhost:9090/api/v1/query?query={device_id="' + device_id + '"}').read().decode())
+        previous_data = json.loads(urllib.request.urlopen(PROMETHEUS + '/api/v1/query?query={device_id="' + device_id + '"}').read().decode())
 
         previous_data = previous_data['data']['result']
 
@@ -488,7 +535,7 @@ def on_message(mosq, obj, msg):
         print(f"Received data from {device_id}: {object_data}")
 
         # Push metrics to Prometheus Pushgateway with the job name 'mqtt_listener'
-        push_to_gateway('localhost:9091', job='data-ship', registry=registry)
+        push_to_gateway(PUSHGATEWAY, job='data-ship', registry=registry)
     except json.JSONDecodeError as e:
         print(f"Failed to decode JSON payload: {e}")
     except KeyError as e:
@@ -513,6 +560,10 @@ def connect_mqtt(client):
         except Exception as e:
             print(f"Failed to connect to MQTT broker: {e}. Retrying in 5 seconds...")
             time.sleep(5)
+
+#############################################################################################
+#                              SPEED & DISTANCE CALCULATION                                 #
+#############################################################################################
 
 def calculate_distance_speed(data, prev_values, current_time):
     print(data)
@@ -557,10 +608,16 @@ def calculate_distance_speed(data, prev_values, current_time):
         print(f"Failed to calculate distance and speed: {e}")
         return 0.0, 0.0
 
+#############################################################################################
+#                                           MAIN                                            #
+#############################################################################################
+
 if __name__ == '__main__':
     # Test Pushgateway connection before starting the MQTT client
+    print(f"Connecting to Pushgateway at {PUSHGATEWAY}...")
+    print(f"Connecting to Prometheus at {PROMETHEUS}...")
     try:
-        urllib.request.urlopen('http://localhost:9091/metrics')
+        urllib.request.urlopen(PUSHGATEWAY+'/metrics')
         print("Pushgateway connection successful.")
     except Exception as e:
         print(f"Pushgateway connection failed: {e}")

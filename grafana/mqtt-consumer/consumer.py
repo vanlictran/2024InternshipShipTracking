@@ -111,7 +111,7 @@ def fetch_geojson_from_url(url):
 
 def fetch_prometheus_data(query):
     try:
-        encoded_query = urllib.parse.quote(query + "")
+        encoded_query = urllib.parse.quote(query)
         url = PROMETHEUS + '/api/v1/query?query='+ encoded_query
         response = urllib.request.urlopen(url).read().decode()
         return json.loads(response)['data']['result']
@@ -137,6 +137,16 @@ def organize_data(data, metric_name, devices_data):
             devices_data[device_id][timestamp][metric_name] = float(val)
     return devices_data
 
+def reduce_duplicates(data):
+    seen = set()
+    new = {}
+    for k, v in data.items():
+        if v["date"] not in seen:
+            new[k] = v
+            seen.add(v["date"])
+    del seen
+    return new
+
 def data_merging(last_data_device):
     DATA_QUERY = '{job="data-ship"}[2m]'
     device = last_data_device['device_id']
@@ -156,6 +166,8 @@ def data_merging(last_data_device):
         devices_data = organize_data(latitude_data, 'latitude', devices_data)
         devices_data = organize_data(longitude_data, 'longitude', devices_data)
         devices_data = organize_data(speed_data, 'speed', devices_data)
+
+        devices_data = {device_id: reduce_duplicates(data) for device_id, data in devices_data.items()}
 
         for device_id, data in devices_data.items():
             sorted_timestamps = sorted(data.keys(), reverse=True)
@@ -405,14 +417,13 @@ def debug_send_data():
     (108.22467015177398, 16.0544323625289),
     (108.22495815953454, 16.05260418566847)
     ]
-    points_2 = reversed(points)
 
     devices = ['debug_device', 'debug_device_2']
 
     step = 0
     #device_id = 'debug_device'
     while DEBUG:
-        #try:
+        try:
             for device_id in devices:
                 current_time = time.time()
                 # Get data from Prometheus limited to 1 and to the device ID
@@ -480,8 +491,8 @@ def debug_send_data():
                 # Wait for 15 seconds before sending the next debug data
             step = (step + 1) % len(points)
             # time.sleep(15)
-        # except Exception as e:
-        #     print(f"Failed to send debug data: {e}")
+        except Exception as e:
+            print(f"Failed to send debug data: {e}")
 
 
 #############################################################################################

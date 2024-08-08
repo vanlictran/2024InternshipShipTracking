@@ -40,6 +40,7 @@ services:
     volumes:
       - ./grafana/datasources:/etc/grafana/provisioning/datasources
       - ./grafana/data:/var/lib/grafana
+    user: "472:472"
     networks:
       - ship-track-net
   nginx:

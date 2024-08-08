@@ -11,7 +11,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-DEBUG = True
+DEBUG = False
 
 
 PUSHGATEWAY = 'http://pushgateway:9091'
@@ -82,7 +82,9 @@ def is_moving_noise_reduction(current, data, threshold_avg = 15, threshold_far=3
 
     total_distance = 0
     farest_point = 0
-    for i in range(1, num_points + 1):
+    if(len(data) == 0):
+        return False
+    for i in range(0, min(num_points, len(data))):
         lon_prev = data[i]["longitude"]
         lat_prev = data[i]["latitude"]
         distance = haversine_distance_in_meters(lon_current, lat_current, lon_prev, lat_prev)

@@ -26,8 +26,8 @@ This part is a tutorial to deploy the solution.
 ### Permissions
 At the same level than this file :
 ```sh
-    sudo chown -R 472:472 ./grafana/
-    sudo chmod -R 755 ./grafana/
+sudo chown -R 472:472 ./grafana/
+sudo chmod -R 755 ./grafana/
 ```
 An error from grafana launch may occur due to permissions restrictions if not given.
 
@@ -35,14 +35,12 @@ An error from grafana launch may occur due to permissions restrictions if not gi
 First, you need to verify the consumer is not in debug mode in the code.
 ```python
 ...
-    DEBUG = False
+DEBUG = False
 ...
 ```
-
-Now you can launch the application with docker-compose
-
+Now you can launch the application with the script bash `./run.sh`
 ```sh
-    sudo docker compose up -d
+sudo bash ./run.sh
 ```
 ## Maintenance
 First, docker containers do not use versioned images for security update reasons and to troubleshoot potential issues.  

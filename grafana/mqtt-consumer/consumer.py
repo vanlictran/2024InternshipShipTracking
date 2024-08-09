@@ -11,7 +11,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-DEBUG = True
+DEBUG = False
 
 
 PUSHGATEWAY = 'http://pushgateway:9091'

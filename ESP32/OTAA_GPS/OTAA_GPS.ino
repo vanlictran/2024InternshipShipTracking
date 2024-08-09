@@ -194,7 +194,7 @@ void loop()
     Serial.println("string value : ");
     Serial.println(str);
 
-  if(s > 0 && LatitudeBinary > 0 && LongitudeBinary > 0) {
+  // if(s > 0 && LatitudeBinary > 0 && LongitudeBinary > 0) {
     //mySerial1.println("AT+SEND=3:68656c6c6f");
     mySerial1.print("AT+SEND=3:");
     mySerial1.println(str);
@@ -215,13 +215,13 @@ void loop()
     Serial.print("AT set complete with downlink : ");
     Serial.println(str);
 
-    delay(10000);
+    delay(2000);
     flush_serial_AT();
-  }
-  else {
-    Serial.println("No GPS DATA FOUND");
-    delay(5000);
-  }
+  // }
+  // else {
+  //   Serial.println("No GPS DATA FOUND");
+  //   delay(5000);
+  // }
 }
 
 bool join() {

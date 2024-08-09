@@ -11,7 +11,7 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
-DEBUG = False
+DEBUG = True
 
 
 PUSHGATEWAY = 'http://pushgateway:9091'
@@ -69,7 +69,8 @@ def check_position_area(lat, lon):
     return 1 if (polygon.contains(point) or polygon.within(point)) else 3
 
 def check_state(current_device_data, data):
-    print(current_device_data)
+    if len(data) == 0:
+        return 2
     return 2 if not(is_moving_noise_reduction(current_device_data, data)) else check_position_area(current_device_data['latitude'], current_device_data['longitude'])
 
 def is_moving_noise_reduction(current, data, threshold_avg = 15, threshold_far=35, num_points=5):
@@ -511,6 +512,8 @@ def on_message(mosq, obj, msg):
         # Extract the object data
         object_data = payload['object']
 
+        print(f"Received data: {payload}")
+
         # Get data from Prometheus limited to 1 and to the device ID
         
         previous_data = json.loads(urllib.request.urlopen(PROMETHEUS + '/api/v1/query?query={device_id="' + device_id + '"}').read().decode())
@@ -518,17 +521,19 @@ def on_message(mosq, obj, msg):
         previous_data = previous_data['data']['result']
 
         prev_values = {item['metric']['__name__']: item['value'][1] for item in previous_data}
-    
-        distance, speed = calculate_distance_speed(object_data, prev_values, current_time)
         
-        state = check_state(object_data['latitude'], object_data['longitude'])
+        distance, speed = calculate_distance_speed(object_data, prev_values, current_time)
 
-
+        object_data['date'] = current_time
         object_data['device_id'] = device_id
         object_data['speed'] = speed
         object_data['distance'] = distance
-        object_data['date'] = current_time
-        object_data['collision_detection']= check_collision(object_data)
+
+        datas = data_merging(object_data)
+
+        object_data['collision_detection']= check_collision(device_id, datas.items())
+        all_datas = datas[device_id] if device_id in datas else {}
+        state = check_state(object_data, all_datas)
 
         # Update Prometheus metrics
         ACCELERATION_X_METRIC.labels(device_id=device_id).set(object_data['acceleration_x'])
@@ -536,18 +541,23 @@ def on_message(mosq, obj, msg):
         ACCELERATION_Z_METRIC.labels(device_id=device_id).set(object_data['acceleration_z'])
         BATTERY_METRIC.labels(device_id=device_id).set(object_data['battery'])
         TEMPERATURE_METRIC.labels(device_id=device_id).set(object_data['temperature'])
+
+        LATITUDE_METRIC.labels(device_id=device_id).set(object_data['latitude'])
+        LONGITUDE_METRIC.labels(device_id=device_id).set(object_data['longitude'])
         STATUT_METRIC.labels(device_id=device_id).set(state)
+        STATUT_NAME_METRIC._labelnames = ['device_id']
+        STATUT_NAME_METRIC._states = STATE_LIST
         STATUT_NAME_METRIC.labels(device_id=device_id).state(STATE_LIST[state])
         SPEED_METRIC.labels(device_id=device_id).set(object_data['speed'])
         DISTANCE_METRIC.labels(device_id=device_id).set(object_data['distance'])
+
         DATE_METRIC.labels(device_id=device_id).set(object_data['date'])
-        LATITUDE_METRIC.labels(device_id=device_id).set(object_data['latitude'])
-        LONGITUDE_METRIC.labels(device_id=device_id).set(object_data['longitude'])
         COLLISON_DETECTION_METRIC.labels(device_id=device_id).set(object_data['collision_detection'])
 
-        print(f"Received data from {device_id}: {object_data}")
-
+        print(f"Debug data sent: {object_data}")
+                
         # Push metrics to Prometheus Pushgateway with the job name 'mqtt_listener'
+        
         push_to_gateway(PUSHGATEWAY, job='data-ship', registry=registry)
     except json.JSONDecodeError as e:
         print(f"Failed to decode JSON payload: {e}")
@@ -640,9 +650,6 @@ if __name__ == '__main__':
     client.on_message = on_message
     client.on_publish = on_publish
 
-    # Read the device IDs from the file and subscribe to the appropriate topics
-    device_ids = read_endpoints('endpoints.txt')
-
     connect_mqtt(client)  # Try to connect to the MQTT broker
 
     topic = "application/86/device/+/event/up"
@@ -652,7 +659,7 @@ if __name__ == '__main__':
     #     client.subscribe(topic, 2)
 
     # Start the debug thread if DEBUG is set to True
-    if DEBUG:
+    if DEBUG and False:
         debug_thread = threading.Thread(target=debug_send_data)
         debug_thread.daemon = True
         debug_thread.start()

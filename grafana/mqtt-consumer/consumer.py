@@ -3,16 +3,17 @@ from prometheus_client import Gauge, Enum, CollectorRegistry, push_to_gateway
 from scipy.interpolate import CubicSpline
 from shapely.geometry import Point, Polygon
 import json
-import urllib.request as requests
+import urllib.request
 import urllib.parse
 import time
 import threading
 import math
 import numpy as np
 import matplotlib.pyplot as plt
+import requests
+import re
 
-DEBUG = False
-
+DEBUG = True
 
 PUSHGATEWAY = 'http://pushgateway:9091'
 PROMETHEUS = 'http://prometheus:9090'
@@ -52,6 +53,47 @@ def round_coordinates(coordinates, precision=7):
 #                                    STATE CALCULATION                                      #
 #############################################################################################
 
+def get_zones_checking():
+    pattern = re.compile(r".+\.geojson", re.IGNORECASE)
+    try:
+        res = requests.get(NGINX + '/list_files/')
+        res.raise_for_status()
+        list_files = res.json()
+        print(list_files)
+        data = []
+        for file in list_files:
+            if file["type"] != "file":
+                continue
+            if pattern.match(file["name"]) == None:
+                continue
+            res = requests.get(NGINX + '/data/' + file["name"])
+            res.raise_for_status()
+            data.append(res.json())
+
+        return data
+    except Exception as e:
+        print(f"Failed to fetch data from NGINX: {e}")
+        return {}
+
+def merge_zones_checking():
+    polygons_list = []
+
+    datas = get_zones_checking()
+    for data in datas:
+        features = data["features"]
+        for feature in features:
+            if feature['geometry']['type'] != 'Polygon':
+                continue
+            #only process first zone
+            polygon_coordinates = feature['geometry']['coordinates'][0]
+            rounded_polygon_coordinates = round_coordinates(polygon_coordinates)
+            polygon = Polygon(rounded_polygon_coordinates)
+            polygons_list.append(polygon)
+    
+    return polygons_list
+
+
+
 # Function to check if a GPS point is in a zone area
 def check_position_area(lat, lon):
     # Get geojson file from 127.0.0.1:3030/data/zone-han-river.geojson
@@ -64,9 +106,11 @@ def check_position_area(lat, lon):
 
     # Create a Point and Polygon object
     point = Point(lon, lat)  # Note: Point takes (x, y) which corresponds to (lon, lat)
-    polygon = Polygon(rounded_polygon_coordinates)
-
-    return 1 if (polygon.contains(point) or polygon.within(point)) else 3
+    polygons = merge_zones_checking()
+    for polygon in polygons:
+        if polygon.contains(point) or polygon.within(point):
+            return 1
+    return 3
 
 def check_state(current_device_data, data):
     if len(data) == 0:
@@ -639,6 +683,7 @@ if __name__ == '__main__':
     # Test Pushgateway connection before starting the MQTT client
     print(f"Connecting to Pushgateway at {PUSHGATEWAY}...")
     print(f"Connecting to Prometheus at {PROMETHEUS}...")
+    print("-----------------------------------\n", merge_zones_checking(),"\n-----------------------------------")
     try:
         urllib.request.urlopen(PUSHGATEWAY+'/metrics')
         print("Pushgateway connection successful.")

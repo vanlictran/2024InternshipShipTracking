@@ -5,10 +5,10 @@ This documentation is dedicated to the monitoring part of the project.
 ## Context
 This document explain how this monitoring application works and how to deploy, maintain it.
 
-## Summary
- - [Technical explanations](#technical-explanations)
- - [Deployement](#deployement)
- - [Maintenance](#maintenance)
+## Table of content
+ * [Technical explanations](#technical-explanations)
+ * [Deployement](#deployement)
+ * [Maintenance](#maintenance)
 
 ## Technical explanations
 ### Network and communication

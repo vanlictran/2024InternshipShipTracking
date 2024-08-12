@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import requests
 import re
 
-DEBUG = True
+DEBUG = False
 
 PUSHGATEWAY = 'http://pushgateway:9091'
 PROMETHEUS = 'http://prometheus:9090'
@@ -53,6 +53,9 @@ def round_coordinates(coordinates, precision=7):
 #                                    STATE CALCULATION                                      #
 #############################################################################################
 
+'''
+Get all zones (list of points which define a polygon zone)
+'''
 def get_zones_checking():
     pattern = re.compile(r".+\.geojson", re.IGNORECASE)
     try:
@@ -75,6 +78,9 @@ def get_zones_checking():
         print(f"Failed to fetch data from NGINX: {e}")
         return {}
 
+'''
+Build a list of Polygon (object)
+'''
 def merge_zones_checking():
     polygons_list = []
 
@@ -92,18 +98,10 @@ def merge_zones_checking():
     
     return polygons_list
 
-
-
-# Function to check if a GPS point is in a zone area
+'''
+Checking if coordinate are in areas
+'''
 def check_position_area(lat, lon):
-    # Get geojson file from 127.0.0.1:3030/data/zone-han-river.geojson
-    with urllib.request.urlopen(NGINX + '/data/zone-han-river.geojson') as url:
-        data = json.loads(url.read().decode())
-
-    # Extract the coordinates of the polygon and round them
-    polygon_coordinates = data['features'][0]['geometry']['coordinates'][0]
-    rounded_polygon_coordinates = round_coordinates(polygon_coordinates)
-
     # Create a Point and Polygon object
     point = Point(lon, lat)  # Note: Point takes (x, y) which corresponds to (lon, lat)
     polygons = merge_zones_checking()
@@ -112,11 +110,17 @@ def check_position_area(lat, lon):
             return 1
     return 3
 
+'''
+return current state of the device 'current_device_data'
+'''
 def check_state(current_device_data, data):
     if len(data) == 0:
         return 2
     return 2 if not(is_moving_noise_reduction(current_device_data, data)) else check_position_area(current_device_data['latitude'], current_device_data['longitude'])
 
+'''
+To define if the boat is moving or not, by reducing the noice of GPS data
+'''
 def is_moving_noise_reduction(current, data, threshold_avg = 15, threshold_far=35, num_points=5):
     data = list(data.values())
     if len(data) == 0:
@@ -133,18 +137,18 @@ def is_moving_noise_reduction(current, data, threshold_avg = 15, threshold_far=3
         lon_prev = data[i]["longitude"]
         lat_prev = data[i]["latitude"]
         distance = haversine_distance_in_meters(lon_current, lat_current, lon_prev, lat_prev)
-        print(distance)
         if distance > farest_point:
             farest_point = distance
         total_distance += distance
-    print('############################################################\n', farest_point, total_distance,'\n############################################################')
     average_distance = total_distance / num_points
     return True if farest_point > threshold_far else False if average_distance < threshold_avg else True
 
 #############################################################################################
 #                                      FETCHING DATA                                        #
 #############################################################################################
-
+'''
+Get the geojson file at 'url'
+'''
 def fetch_geojson_from_url(url):
     try:
         with urllib.request.urlopen(url) as response:
@@ -154,6 +158,9 @@ def fetch_geojson_from_url(url):
         print(f"Failed to fetch GeoJSON data from URL {url}: {e}")
         return None
 
+'''
+Request on Prometheus to get previous data
+'''
 def fetch_prometheus_data(query):
     try:
         encoded_query = urllib.parse.quote(query)
@@ -164,6 +171,9 @@ def fetch_prometheus_data(query):
         print(f"Failed to fetch data for query {query}: {e}")
         return []
 
+'''
+Merge differents metrics at a same date to a unique object
+'''
 def organize_data(data, metric_name, devices_data):
     # print("--------")
     # print(data)
@@ -182,6 +192,9 @@ def organize_data(data, metric_name, devices_data):
             devices_data[device_id][timestamp][metric_name] = float(val)
     return devices_data
 
+'''
+Delete dupplicated data
+'''
 def reduce_duplicates(data):
     seen = set()
     new = {}
@@ -192,6 +205,11 @@ def reduce_duplicates(data):
     del seen
     return new
 
+'''
+Build a list of data object from prometheus for each device
+
+Add last data from the current device to its data
+'''
 def data_merging(last_data_device):
     DATA_QUERY = '{job="data-ship"}[2m]'
     device = last_data_device['device_id']
@@ -243,25 +261,39 @@ def data_merging(last_data_device):
 #                                   PREDICTION MOVEMENT                                     #
 #############################################################################################
 
+'''
+Calculate distance from 2 points in meters
+'''
 def haversine_distance_in_meters(lat1, lon1, lat2, lon2):
     return haversine_distance(lat1, lon1, lat2, lon2) * 1000
 
+'''
+Calculate distance from 2 points in kilometers
+'''
 def haversine_distance(lat1, lon1, lat2, lon2):
-    R = 6371.0  # Rayon de la Terre en km
+    R = 6371.0  # Earth radius
     dlat = np.radians(lat2 - lat1)
     dlon = np.radians(lon2 - lon1)
     a = np.sin(dlat / 2)**2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon / 2)**2
     c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
     return R * c
 
+'''
+Calculate point from an point, a distance, an angle$
+
+Used to calculate the collision zone
+'''
 def move_point(lat, lon, distance, bearing):
-    R = 6371.0  # Rayon de la Terre en km
+    R = 6371.0  # Earth radius
     lat = np.radians(lat)
     lon = np.radians(lon)
     lat2 = np.arcsin(np.sin(lat) * np.cos(distance / R) + np.cos(lat) * np.sin(distance / R) * np.cos(bearing))
     lon2 = lon + np.arctan2(np.sin(bearing) * np.sin(distance / R) * np.cos(lat), np.cos(distance / R) - np.sin(lat) * np.sin(lat2))
     return np.degrees(lat2), np.degrees(lon2)
 
+'''
+calculate 2 points which are perpendicular to the 2 points in params
+'''
 def calculate_perpendicular(lat1, lon1, lat2, lon2, scale_km=0.05):
     distance = haversine_distance(lat1, lon1, lat2, lon2)
     bearing = math.atan2(lon2 - lon1, lat2 - lat1)
@@ -276,6 +308,11 @@ def calculate_perpendicular(lat1, lon1, lat2, lon2, scale_km=0.05):
 
     return perp_point1, perp_point2
 
+'''
+predict next position from current and last GPS data
+
+return a list of predected position
+'''
 def predict_next_points(gps_data, num_predictions=3, time_step=20, base_error_step=0.02):
 
     try:
@@ -345,6 +382,9 @@ def predict_next_points(gps_data, num_predictions=3, time_step=20, base_error_st
         print(f"Failed to predict next points: {e}")
         return {}
 
+'''
+Recurring function to build a zone with the predicted points  
+'''
 def create_error_zone_recurence(polygon, predicted_points):
     if predicted_points == {}:
         return polygon
@@ -355,6 +395,10 @@ def create_error_zone_recurence(polygon, predicted_points):
 
     return polygon
 
+
+'''
+Return a possible travel area (Polygon)
+'''
 def create_error_zone_polygon(gps_data, predicted_points):
     timestamps = sorted(gps_data.keys())
     last_point = gps_data[timestamps[-1]]
@@ -368,6 +412,9 @@ def create_error_zone_polygon(gps_data, predicted_points):
     
     return Polygon(points)
 
+'''
+Check if current device have any collision route with other devices 
+'''
 def check_collision(current_device_id, devices_data):
     devices_data = devices_data
     current_zone = {}
@@ -543,7 +590,9 @@ def debug_send_data():
 #############################################################################################
 #                               CLIENT FUNCTION DEFINITION                                  #
 #############################################################################################
-
+'''
+On_message function for recieved message from mqtt
+'''
 def on_message(mosq, obj, msg):
     try:
         current_time = time.time()
@@ -610,13 +659,11 @@ def on_message(mosq, obj, msg):
     except Exception as e:
         print(f"Failed to push metrics to Pushgateway: {e}")
 
+'''
+On_publish function to send message on the queue mqtt
+'''
 def on_publish(mosq, obj, mid):
     pass
-
-def read_endpoints(file_path):
-    with open(file_path, 'r') as file:
-        topics = file.readlines()
-    return [topic.strip() for topic in topics]
 
 def connect_mqtt(client):
     while True:
@@ -683,7 +730,6 @@ if __name__ == '__main__':
     # Test Pushgateway connection before starting the MQTT client
     print(f"Connecting to Pushgateway at {PUSHGATEWAY}...")
     print(f"Connecting to Prometheus at {PROMETHEUS}...")
-    print("-----------------------------------\n", merge_zones_checking(),"\n-----------------------------------")
     try:
         urllib.request.urlopen(PUSHGATEWAY+'/metrics')
         print("Pushgateway connection successful.")

@@ -18,7 +18,11 @@ This part is a tutorial to deploy the solution.
 
 ### &nbsp; Requierements
 - Docker, refer to documentation docker : [Install on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) or [Install on Windows Cumputer](https://www.docker.com/products/docker-desktop/)
-- Permission
+
+**<span style="color: red;">ARCHITECTURE ISSUES - AMD/ARM</span>** : 
+If your server is based on ARM, you could have issues with grafana images. To resolve it, here is some steps :
+
+1. 
 
 ### &nbsp; Permissions
 At the same level than this file :

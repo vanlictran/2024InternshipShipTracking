@@ -23,6 +23,7 @@ services:
 
   grafana:
     image: benneuville/grafana-track-ship
+    platform: linux/amd64
     container_name: grafana-ship-track
     ports:
       - 4445:3000

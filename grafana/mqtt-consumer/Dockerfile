@@ -9,6 +9,9 @@ COPY . /app
 
 # Copier et installer les dépendances
 COPY requirements.txt /app/requirements.txt
+
+RUN apt-get update && apt-get install -y libpq-dev build-essential
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Commande pour exécuter le script Python

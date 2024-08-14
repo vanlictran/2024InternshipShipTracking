@@ -1,4 +1,4 @@
 sudo chown -R 472:472 ./
 sudo chmod -R 755 ./
 
-docker compose up -d
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up --build

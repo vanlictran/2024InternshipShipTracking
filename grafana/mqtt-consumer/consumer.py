@@ -15,6 +15,8 @@ import re
 
 DEBUG = False
 
+APP_NUMBER = 86
+
 PUSHGATEWAY = 'http://pushgateway:9091'
 PROMETHEUS = 'http://prometheus:9090'
 NGINX = 'http://nginx:3030'
@@ -600,7 +602,7 @@ def on_message(mosq, obj, msg):
         payload = json.loads(msg.payload.decode())
 
         # Extract device ID
-        device_id = payload['devEUI']
+        device_id = payload['deviceName']
 
         # Extract the object data
         object_data = payload['object']
@@ -743,10 +745,10 @@ if __name__ == '__main__':
 
     connect_mqtt(client)  # Try to connect to the MQTT broker
 
-    topic = "application/86/device/+/event/up"
+    topic = "application/"+ APP_NUMBER + "/device/+/event/up"
     client.subscribe(topic, 2)
     # for device_id in device_ids:
-    #     topic = f"application/86/device/{device_id}/event/up"
+    #     topic = f"application/{APP_NUMBER}/device/{device_id}/event/up"
     #     client.subscribe(topic, 2)
 
     # Start the debug thread if DEBUG is set to True

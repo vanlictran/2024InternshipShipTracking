@@ -10,6 +10,8 @@ This document explain how this monitoring application works and how to deploy, m
 ## Technical explanations
 ### &nbsp; Network and communication
 
+<img src="../assets/docker-compose-architecture.png" style="max-height: 450px"/>
+
 ### &nbsp; Data
 
 ## Deployement
@@ -19,10 +21,10 @@ This part is a tutorial to deploy the solution.
 ### &nbsp; Requierements
 - Docker, refer to documentation docker : [Install on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) or [Install on Windows Cumputer](https://www.docker.com/products/docker-desktop/)
 
-**<span style="color: red;">ARCHITECTURE ISSUES - AMD/ARM</span>** : 
-If your server is based on ARM, you could have issues with grafana images. To resolve it, here is some steps :
+**<span style="color: red;">ARCHITECTURE ISSUES - AMD/ARM</span>** :\
+If your server is based on ARM, you could have issues with grafana images. To resolve it, launch the script at `archlinux_arm64_script/amd64_base_on_arm64.sh` or [here](./archlinux_arm64_script/amd64_base_on_arm64.sh).
 
-1. 
+You could still have issue, so you have some commands in the "comments" section to try for resolving the problems.
 
 ### &nbsp; Permissions
 At the same level than this file :

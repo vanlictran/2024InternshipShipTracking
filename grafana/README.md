@@ -68,11 +68,6 @@ This part is a tutorial to deploy the solution.
 ### &nbsp; Requierements
 - Docker, refer to documentation docker : [Install on Ubuntu](https://docs.docker.com/engine/install/ubuntu/) or [Install on Windows Cumputer](https://www.docker.com/products/docker-desktop/)
 
-**<span style="color: red;">ARCHITECTURE ISSUES - AMD/ARM</span>** :\
-If your server is based on ARM, you could have issues with grafana images. To resolve it, launch the script at `archlinux_arm64_script/amd64_base_on_arm64.sh` or [here](./archlinux_arm64_script/amd64_base_on_arm64.sh).
-
-You could still have issue, so you have some commands in the "comments" section to try for resolving the problems.
-
 ### &nbsp; Permissions
 At the same level than this file :
 ```sh
@@ -110,3 +105,11 @@ Don't forget to modify the id of application `APP_NUMBER` in the script, by your
 This server is an auto-heberged file server. It used to give documents (like .geojson for zone delimitation) used for data processing and/or display.
 
 You can add/delete/modify files directly in the folder `./datas/`. The volume is shared with the container directly while is up.
+
+### &nbsp; Geomap address update
+On Grafana's Geomap (on `Ship_track` panel and `Ship details`), by the correct ip address or DNS name for the Nginx server.
+
+Example :
+```
+http://10.10.53.184:3030/data/zone-han-river.geojson
+```

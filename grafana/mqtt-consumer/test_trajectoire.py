@@ -20,7 +20,7 @@ def move_point(lat, lon, distance, bearing):
     lon2 = lon + np.arctan2(np.sin(bearing) * np.sin(distance / R) * np.cos(lat), np.cos(distance / R) - np.sin(lat) * np.sin(lat2))
     return np.degrees(lat2), np.degrees(lon2)
 
-def calculate_perpendicular(lat1, lon1, lat2, lon2, scale_km=0.1):
+def calculate_perpendicular(lat1, lon1, lat2, lon2, number_point, scale_km=0.1):
     distance = haversine_distance(lat1, lon1, lat2, lon2)
     bearing = math.atan2(lon2 - lon1, lat2 - lat1)
 
@@ -29,8 +29,8 @@ def calculate_perpendicular(lat1, lon1, lat2, lon2, scale_km=0.1):
     perp_bearing2 = bearing - math.pi / 2
 
     # Calculer les points de la perpendiculaire
-    perp_point1 = move_point(lat2, lon2, scale_km, perp_bearing1)
-    perp_point2 = move_point(lat2, lon2, scale_km, perp_bearing2)
+    perp_point1 = move_point(lat2, lon2, number_point * scale_km, perp_bearing1)
+    perp_point2 = move_point(lat2, lon2, number_point * scale_km, perp_bearing2)
 
     return perp_point1, perp_point2
 
@@ -70,7 +70,7 @@ def predict_next_points(gps_data, num_predictions=3, time_step=20, base_error_st
         error_margin = base_error_step * (time_step / 5) / current_speed * i
         
         # Calculate perpendicular points
-        perp_point1, perp_point2 = calculate_perpendicular(prev_lat, prev_long, next_lat, next_lon, 0.0001)
+        perp_point1, perp_point2 = calculate_perpendicular(prev_lat, prev_long, next_lat, next_lon, i, 0.0001)
 
         print("prep : ", perp_point1, "\npoint", [next_lat, next_lon], "\nprep2 : ", perp_point2)
         
@@ -111,7 +111,7 @@ def create_error_zone_polygon(gps_data, predicted_points):
 
 # Example usage
 gps_data = {
-    1721836574.277: {'date': 1721836567.3032665, 'latitude': 16.051108320558086, 'longitude': 108.22507352428653, 'vitesse': 5},
+    1721836574.277: {'date': 1721836567.3032665, 'latitude': 16.051108820558086, 'longitude': 108.22507352428653, 'vitesse': 5},
     1721836584.277: {'date': 1721836577.3032665, 'latitude': 16.051108720558086, 'longitude': 108.22507372428653, 'vitesse': 1},
     1721836594.277: {'date': 1721836587.3032665, 'latitude': 16.051108520558086, 'longitude': 108.22507392428653, 'vitesse': 15}
 }
@@ -140,12 +140,12 @@ longitudes_2 = [gps_data_2[ts]['longitude'] for ts in sorted(gps_data_2.keys())]
 plt.plot(longitudes_2, latitudes_2, 'yo-', label='Original Trajectory 2')
 
 # Predicted trajectory
-pred_latitudes = [predicted_points[ts]['latitude'] for ts in sorted(predicted_points.keys())]
-pred_longitudes = [predicted_points[ts]['longitude'] for ts in sorted(predicted_points.keys())]
-plt.plot(pred_longitudes, pred_latitudes, 'bo-', label='Predicted Trajectory')
-pred_latitudes_2 = [predicted_points_2[ts]['latitude'] for ts in sorted(predicted_points_2.keys())]
-pred_longitudes_2 = [predicted_points_2[ts]['longitude'] for ts in sorted(predicted_points_2.keys())]
-plt.plot(pred_longitudes_2, pred_latitudes_2, 'ro-', label='Predicted Trajectory 2')
+# pred_latitudes = [predicted_points[ts]['latitude'] for ts in sorted(predicted_points.keys())]
+# pred_longitudes = [predicted_points[ts]['longitude'] for ts in sorted(predicted_points.keys())]
+# plt.plot(pred_longitudes, pred_latitudes, 'bo-', label='Predicted Trajectory')
+# pred_latitudes_2 = [predicted_points_2[ts]['latitude'] for ts in sorted(predicted_points_2.keys())]
+# pred_longitudes_2 = [predicted_points_2[ts]['longitude'] for ts in sorted(predicted_points_2.keys())]
+# plt.plot(pred_longitudes_2, pred_latitudes_2, 'ro-', label='Predicted Trajectory 2')
 
 # Predicted error zones
 error_zone_x, error_zone_y = error_zone_polygon.exterior.xy
@@ -155,7 +155,7 @@ plt.plot(error_zone_x_2, error_zone_y_2, 'r--', label='Predicted Error Zone 2')
 
 plt.xlabel('Longitude')
 plt.ylabel('Latitude')
-plt.legend()
+plt.axis('equal')
 plt.title('Trajectory Prediction and Error Zones')
 plt.grid(True)
 plt.show()

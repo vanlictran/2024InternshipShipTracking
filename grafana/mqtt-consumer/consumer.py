@@ -15,7 +15,7 @@ import re
 
 DEBUG = False
 
-APP_NUMBER = 86
+APP_NUMBER = "86"
 
 PUSHGATEWAY = 'http://pushgateway:9091'
 PROMETHEUS = 'http://prometheus:9090'
@@ -752,7 +752,7 @@ if __name__ == '__main__':
     #     client.subscribe(topic, 2)
 
     # Start the debug thread if DEBUG is set to True
-    if DEBUG and False:
+    if DEBUG:
         debug_thread = threading.Thread(target=debug_send_data)
         debug_thread.daemon = True
         debug_thread.start()
